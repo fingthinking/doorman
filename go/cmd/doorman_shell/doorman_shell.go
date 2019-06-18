@@ -21,6 +21,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"io"
 	"net/http"
 	"os"
@@ -31,7 +32,6 @@ import (
 	"github.com/chzyer/readline"
 	log "github.com/golang/glog"
 	"github.com/google/shlex"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/youtube/doorman/go/client/doorman"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -264,13 +264,13 @@ func main() {
 	}
 
 	if *port != 0 {
-		http.Handle("/metrics", prometheus.Handler())
+		http.Handle("/metrics", promhttp.Handler())
 		go http.ListenAndServe(fmt.Sprintf(":%v", *port), nil)
 	}
 
 	var opts []grpc.DialOption
 	if len(*caFile) != 0 {
-		var creds credentials.TransportAuthenticator
+		var creds credentials.TransportCredentials
 		var err error
 		creds, err = credentials.NewClientTLSFromFile(*caFile, "")
 		if err != nil {

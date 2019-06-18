@@ -51,7 +51,7 @@ func main() {
 
 	var opts []grpc.DialOption
 	if len(*caFile) != 0 {
-		var creds credentials.TransportAuthenticator
+		var creds credentials.TransportCredentials
 		var err error
 		creds, err = credentials.NewClientTLSFromFile(*caFile, "")
 		if err != nil {
@@ -62,7 +62,7 @@ func main() {
 	} else {
 		opts = append(opts, grpc.WithInsecure())
 	}
-
+	// 创建doorman客户端
 	client, err := doorman.NewWithID(*server, *clientID, doorman.DialOpts(opts...))
 
 	if err != nil {
@@ -70,6 +70,7 @@ func main() {
 	}
 
 	defer client.Close()
+	// 资源名 & wants
 	resource, err := client.Resource(*resource, *wants)
 
 	if err != nil {

@@ -45,13 +45,13 @@ It has these top-level messages:
 */
 package doorman
 
-import proto "github.com/golang/protobuf/proto"
-import fmt "fmt"
-import math "math"
+import "github.com/golang/protobuf/proto"
+import "fmt"
+import "math"
 
 import (
-	context "golang.org/x/net/context"
-	grpc "google.golang.org/grpc"
+	"golang.org/x/net/context"
+	"google.golang.org/grpc"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -822,7 +822,7 @@ func RegisterCapacityServer(s *grpc.Server, srv CapacityServer) {
 	s.RegisterService(&_Capacity_serviceDesc, srv)
 }
 
-func _Capacity_Discovery_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+func _Capacity_Discovery_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DiscoveryRequest)
 	if err := dec(in); err != nil {
 		return nil, err
@@ -834,7 +834,7 @@ func _Capacity_Discovery_Handler(srv interface{}, ctx context.Context, dec func(
 	return out, nil
 }
 
-func _Capacity_GetCapacity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+func _Capacity_GetCapacity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetCapacityRequest)
 	if err := dec(in); err != nil {
 		return nil, err
@@ -846,7 +846,7 @@ func _Capacity_GetCapacity_Handler(srv interface{}, ctx context.Context, dec fun
 	return out, nil
 }
 
-func _Capacity_GetServerCapacity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+func _Capacity_GetServerCapacity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetServerCapacityRequest)
 	if err := dec(in); err != nil {
 		return nil, err
@@ -858,7 +858,7 @@ func _Capacity_GetServerCapacity_Handler(srv interface{}, ctx context.Context, d
 	return out, nil
 }
 
-func _Capacity_ReleaseCapacity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error) (interface{}, error) {
+func _Capacity_ReleaseCapacity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ReleaseCapacityRequest)
 	if err := dec(in); err != nil {
 		return nil, err

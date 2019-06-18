@@ -38,6 +38,7 @@ const (
 )
 
 // Connection contains information about connection between the server and the client.
+// 表示client与server的连接
 type Connection struct {
 	addr          string
 	currentMaster string
@@ -51,6 +52,7 @@ func (connection *Connection) String() string {
 }
 
 // New creates a new Connection with the given server address.
+// 根据地址创建Connection
 func New(addr string, options ...Option) (*Connection, error) {
 	connection := &Connection{
 		addr: addr,
@@ -73,6 +75,7 @@ type Options struct {
 // Option configures the connection parameters.
 type Option func(*Options)
 
+// 对Options进行配置
 func getOptions(options []Option) *Options {
 	opts := &Options{
 		MinimumRefreshInterval: 5 * time.Second,
@@ -101,16 +104,19 @@ func DialOpts(dialOpts ...rpc.DialOption) Option {
 }
 
 // connect connects the client to the server at addr.
+// 连接server
 func (connection *Connection) connect(addr string) error {
 	connection.Close()
 	log.Infof("connecting to %v", addr)
 
+	// 创建rpc连接
 	conn, err := rpc.Dial(addr, connection.Opts.DialOpts...)
 	if err != nil {
 		log.Errorf("connection failed: %v", err)
 		return err
 	}
 
+	// 创建连接
 	connection.conn, connection.Stub = conn, pb.NewCapacityClient(conn)
 	connection.currentMaster = addr
 
@@ -118,6 +124,7 @@ func (connection *Connection) connect(addr string) error {
 }
 
 // ExecuteRPC executes an RPC against the current master.
+// 连接执行rpc请求
 func (connection *Connection) ExecuteRPC(callback func() (HasMastership, error)) (interface{}, error) {
 	// Runs the actual RPC (through the callback function passed in here)
 	// through the runMasterAware shell.
@@ -132,6 +139,7 @@ type HasMastership interface {
 
 // runMasterAware is a wrapper for RPCs that may receive a response informing
 // of a changed mastership, in which case it will reconnect and retry.
+// 待执行的rpc请求，包装了重试逻辑
 func (connection *Connection) runMasterAware(callback func() (HasMastership, error)) (interface{}, error) {
 	var (
 		err     error
@@ -162,6 +170,7 @@ func (connection *Connection) runMasterAware(callback func() (HasMastership, err
 		}
 
 		// Calls the callback function that performs an RPC on the master.
+		// 执行callback函数
 		out, err = callback()
 
 		// If an error happened we are going to close the connection to the
@@ -181,6 +190,7 @@ func (connection *Connection) runMasterAware(callback func() (HasMastership, err
 		// If there was no mastership field in the response the server we talked
 		// to was the master and has processed the request. If that is the case
 		// we can return the response.
+		// 如果没有mastership属性，说明连接的是master, 并且已经处理了请求
 		if mastership == nil {
 			return out, nil
 		}
@@ -188,11 +198,13 @@ func (connection *Connection) runMasterAware(callback func() (HasMastership, err
 		// If there was a mastership message we check it for presence of the
 		// master_bns field. If there is none then the server does not know
 		// who the master is. In that case we need to retry.
+		// 当前连接不是master, 不知道谁是master, 重新尝试
 		if mastership.MasterAddress == nil {
 			log.Warningf("%v is not the master, and does not know who the master is", connection.currentMaster)
 			continue
 		}
 
+		// 获得了master地址，重新连接master, 处理请求
 		newMaster := mastership.GetMasterAddress()
 
 		// This should not happen, because if the server does not know who the master is

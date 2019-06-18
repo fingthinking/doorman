@@ -66,6 +66,7 @@ var (
 	ErrInvalidWants = errors.New("wants must be > 0.0")
 )
 
+// prometheus配置
 var (
 	requestLabels = []string{"server", "method"}
 
@@ -101,6 +102,7 @@ func init() {
 // because we do not want our users to be aware of the internal connection package.
 
 // Option configures the client's connection parameters.
+// 连接参数配置函数
 type Option connection.Option
 
 // getClientID returns a unique client id, consisting of a host:pid id plus a counter
@@ -126,16 +128,20 @@ func DialOpts(dialOpts ...rpc.DialOption) Option {
 }
 
 // Resource represents a resource managed by a doorman server.
+// 资源管理接口
 type Resource interface {
 	// Capacity returns a channel on which the available capacity
 	// will be sent.
+	// 可用的容量
 	Capacity() chan float64
 
 	// Ask requests a new capacity for this resource. If the resource
 	// was already released this call has no effect.
+	// 请求lease
 	Ask(float64) error
 
 	// Release releases any capacity held by this client.
+	// 释放lease
 	Release() error
 }
 
@@ -158,10 +164,12 @@ type Client struct {
 	conn *connection.Connection
 
 	// resources keeps currently claimed resources.
+	// 持有的资源对象
 	resources map[string]*resourceImpl
 
 	// Channels for synchronization with the client's goroutine.
 	newResource     chan resourceAction
+	// 在资源被释放时, 该channel被通知到
 	releaseResource chan resourceAction
 	goRoutineHalted chan bool
 }
@@ -170,17 +178,20 @@ type Client struct {
 // will use the hostname to generate a client id. If you need finer
 // control over the client's id, use NewWithID.
 func New(addr string, opts ...Option) (*Client, error) {
+	// 根据id创建Client
 	return NewWithID(addr, getClientID(), opts...)
 }
 
 // NewWithID creates a new client connected to server available at
 // addr, identifying using the custom id provided.
 func NewWithID(addr string, id string, opts ...Option) (*Client, error) {
+	// 拷贝一次opts
 	var connectionOpts []connection.Option
 	for _, opt := range opts {
 		connectionOpts = append(connectionOpts, connection.Option(opt))
 	}
 
+	// 创建与server的连接
 	conn, err := connection.New(addr, connectionOpts...)
 	if err != nil {
 		return nil, err
@@ -220,6 +231,7 @@ func (client *Client) run() {
 		retryCount = 0
 	)
 
+	// 如果关闭的话，需要关闭RoutingHalt
 	defer close(client.goRoutineHalted)
 
 	for {
@@ -229,6 +241,8 @@ func (client *Client) run() {
 		// timer has fired.
 		select {
 		case req, ok := <-client.newResource:
+			// 如果客户端有新的资源申请, 则添加到一个资源里
+			// client#Resource()
 			if !ok {
 				// The client has closed, nothing to do here.
 				return
@@ -237,6 +251,7 @@ func (client *Client) run() {
 			req.err <- client.addResource(req.resource)
 
 		case req, ok := <-client.releaseResource:
+			// 释放资源, 从client中删除一个资源
 			if !ok {
 				// The client has closed, nothing to do here.
 				return
@@ -256,6 +271,7 @@ func (client *Client) run() {
 		// a refresh interval expired. If it is the former we
 		// need to stop the timer and potentially empty the wakeup
 		// channel if it fired in between (race condition).
+		// 如果timer不为空，则主动把timer替换为空
 		if timer != nil && !timer.Stop() {
 			<-wakeUp
 			timer = nil
@@ -266,11 +282,12 @@ func (client *Client) run() {
 		// either be a refresh interval, or an exponential backoff in
 		// case of errors.
 		var interval time.Duration
-
+		// 执行请求.
 		interval, retryCount = client.performRequests(retryCount)
 
 		// Creates a new timer which will wake us up after the
 		// specified interval has expired.
+		// 维持心跳用的.
 		timer = time.AfterFunc(interval, func() {
 			wakeUp <- true
 		})
@@ -312,10 +329,12 @@ func (client *Client) removeResource(res *resourceImpl) error {
 // call to performRequests.
 func (client *Client) performRequests(retryNumber int) (interval time.Duration, nextRetryNumber int) {
 	// Creates new GetCapacityRequest
+	// 创建容量请求
 	in := &pb.GetCapacityRequest{ClientId: proto.String(client.id)}
 
 	// Adds all resources in this client's resource registry to the
 	// request.
+	// 添加到请求的资源列表中
 	for id, resource := range client.resources {
 		in.Resource = append(in.Resource, &pb.ResourceRequest{
 			Priority:   proto.Int64(resource.priority),
@@ -348,6 +367,7 @@ func (client *Client) performRequests(retryNumber int) (interval time.Duration, 
 		return timeutil.Backoff(minBackoff, maxBackoff, retryNumber), retryNumber + 1
 	}
 
+	// 处理返回数据
 	for _, pr := range out.Response {
 		res, ok := client.resources[pr.GetResourceId()]
 
@@ -365,6 +385,7 @@ func (client *Client) performRequests(retryNumber int) (interval time.Duration, 
 		res.lease = pr.GetGets()
 
 		// Only send a message down the channel if the capacity has changed.
+		// 如果新获取的容量, 与现存容量不相等, 尝试更新容量
 		if res.lease.GetCapacity() != oldCapacity {
 			// res.capacity is a buffered channel, so if no one is
 			// receiving on the other side this will send messages
@@ -465,11 +486,14 @@ func (client *Client) releaseCapacity(in *pb.ReleaseCapacityRequest) (*pb.Releas
 
 // getCapacity Executes this RPC against the current master. Returns the GetCapacity RPC
 // response, or nil if an error occurred.
+// 从server获取容量.
 func (client *Client) getCapacity(in *pb.GetCapacityRequest) (*pb.GetCapacityResponse, error) {
 	// context.TODO(ryszard): Plumb a context through.
+	//
 	out, err := client.conn.ExecuteRPC(func() (connection.HasMastership, error) {
 		start := time.Now()
 		requests.WithLabelValues(client.conn.String(), "GetCapacity").Inc()
+		// 请求完成，记录到prometheus打点
 		defer func() {
 			log.Infof("%v %v", time.Since(start).Seconds(), time.Since(start))
 			requestDurations.WithLabelValues(client.conn.String(), "GetCapacity").Observe(time.Since(start).Seconds())
@@ -489,6 +513,7 @@ func (client *Client) getCapacity(in *pb.GetCapacityRequest) (*pb.GetCapacityRes
 }
 
 // resourceImpl is the implementation of Resource.
+// Resource的具体实现
 type resourceImpl struct {
 	id       string
 	priority int64
@@ -510,12 +535,14 @@ func (res *resourceImpl) expires() time.Time {
 }
 
 // Capacity implements the Resource interface.
+// 资源剩余容量
 func (res *resourceImpl) Capacity() chan float64 {
 	return res.capacity
 }
 
 // Wants returns the currently desired capacity. It takes care of
 // locking the resource.
+// 当前期望获取到的值
 func (res *resourceImpl) Wants() float64 {
 	res.mu.Lock()
 	defer res.mu.Unlock()
@@ -524,6 +551,7 @@ func (res *resourceImpl) Wants() float64 {
 }
 
 // Ask implements the Resource interface.
+// 给期望赋值
 func (res *resourceImpl) Ask(wants float64) error {
 	if wants <= 0 {
 		return ErrInvalidWants
@@ -537,6 +565,7 @@ func (res *resourceImpl) Ask(wants float64) error {
 }
 
 // Release implements the Resource interface.
+// 释放资源, 会赋值给client releaseResource
 func (res *resourceImpl) Release() error {
 	errC := make(chan error)
 	res.client.releaseResource <- resourceAction{err: errC, resource: res}

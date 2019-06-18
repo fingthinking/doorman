@@ -17,6 +17,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"net"
 	"net/http"
 	"os"
@@ -26,7 +27,6 @@ import (
 	"golang.org/x/net/context"
 
 	log "github.com/golang/glog"
-	"github.com/prometheus/client_golang/prometheus"
 	rpc "google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
@@ -226,7 +226,7 @@ func main() {
 	http.Handle("/", http.RedirectHandler("/debug/status", http.StatusMovedPermanently))
 	AddServer(dm)
 
-	http.Handle("/metrics", prometheus.Handler())
+	http.Handle("/metrics", promhttp.Handler())
 
 	go http.ListenAndServe(fmt.Sprintf(":%v", *debugPort), nil)
 

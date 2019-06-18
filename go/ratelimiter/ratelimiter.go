@@ -61,6 +61,7 @@ type qpsRateLimiter struct {
 }
 
 // NewQPS creates a rate limiter connected to the resourse.
+// 创建一个新的资源对应的QpsRateLimiter
 func NewQPS(res doorman.Resource) RateLimiter {
 	rl := &qpsRateLimiter{
 		resource: res,
@@ -161,6 +162,7 @@ func (rl *qpsRateLimiter) run() {
 			return
 		case capacity := <-rl.resource.Capacity():
 			// Updates rate and interval according to received capacity value.
+			// 获取到新的容量，则更新容量
 			leftoverRateOriginal = rl.update(capacity)
 
 			// Set released to 0, as a new cycle of goroutines' releasing begins.
@@ -172,6 +174,7 @@ func (rl *qpsRateLimiter) run() {
 			// that it sent there.
 			if rl.unlimited() {
 				nonBlocking := make(chan bool)
+				// chan chan bool
 				response <- nonBlocking
 				nonBlocking <- true
 				break

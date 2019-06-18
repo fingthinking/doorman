@@ -40,7 +40,6 @@ import (
 )
 
 var (
-
 	// TODO(rushanny): probably we should get rid of the default vars in the future?
 
 	// defaultPriority is the default priority for the resource request.
@@ -484,7 +483,13 @@ func (server *Server) triggerElection(ctx context.Context) error {
 // New returns a new unconfigured server. parentAddr is the address of
 // a parent, pass the empty string to create a root server. This
 // function should be called only once, as it registers metrics.
+// ctx: 上下文
+// id: ip：port
+// parentAddr: 父服务器地址
+// election: 选举器
+// opts: 连接设置
 func New(ctx context.Context, id string, parentAddr string, leader election.Election, opts ...connection.Option) (*Server, error) {
+	// 创建Server
 	s, err := NewIntermediate(ctx, id, parentAddr, leader, opts...)
 	if err != nil {
 		return nil, err
@@ -518,12 +523,13 @@ func NewIntermediate(ctx context.Context, id string, addr string, leader electio
 		updater updater
 		err     error
 	)
-
+	// 如果addr不为空，则表示其不是root节点
 	isRootServer := addr == ""
 
 	// Set up some configuration for intermediate server: establish a connection
 	// to a lower-level server (e.g. the root server) and assign the updater function.
 	if !isRootServer {
+		// 如果不是root节点, 则连接root节点
 		if conn, err = connection.New(addr, opts...); err != nil {
 			return nil, err
 		}
